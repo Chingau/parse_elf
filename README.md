@@ -11,29 +11,47 @@ void main(void)
 其Makefile如下：
 
 ```makefile
-TARGET      := test_elf
-CC          := gcc
-STRIP       := strip
-LD          := ld
+CC		:= gcc
+STRIP	:= strip
+LD		:= ld
+TEST_ELF := test_elf
 
 PATHS := .
 PATHS += ./src
-FILES := $(foreach path, $(PATHS), $(wildcard $(path)/*.c))
-OBJS := $(patsubst %.c, %.o, $(FILES))
 
-.PHONY:all clean
+FILES_ALL := $(foreach path, $(PATHS), $(wildcard $(path)/*.c))
+FILE_ELF := $(filter %$(TEST_ELF).c, $(FILES_ALL))
+FILES := $(filter-out %$(TEST_ELF).c, $(FILES_ALL))
 
-all: ${TARGET}
+OBJS_ALL := $(patsubst %.c, %.o, $(FILES_ALL))
+OBJ_ELF := $(filter %$(TEST_ELF).o, $(OBJS_ALL))
+OBJS := $(filter-out %$(TEST_ELF).o, $(OBJS_ALL))
 
-${TARGET}:$(OBJS)
-    $(LD) $^ -Ttext 0xc0001500 -e main -m elf_i386 -o $@
-    $(STRIP) $@
+INCS := ./inc
+INC_PATH := $(foreach path, $(INCS), $(patsubst %, -I%, $(path)))
 
-%.o:%.c
-    $(CC) -c $^ -o $@ -m32
+PHONY := all
+PHONY += clean
+PHONY += $(TEST_ELF)
+.PHONY:$(PHONY)
+
+all: $(TEST_ELF) main
+
+$(TEST_ELF):$(OBJ_ELF)
+	$(LD) $^ -Ttext 0xc0001500 -e main -m elf_i386 -o $@
+	$(STRIP) $@
+
+$(OBJ_ELF):$(FILE_ELF)
+	$(CC) -c $^ -o $@ -m32
+
+main:$(OBJS)
+	$(CC) $^ -o $@ $(INC_PATH)
+
+$(OBJS):$(FILES)
+	$(CC) -c $^ -o $@ -Wall $(INC_PATH)
 
 clean:
-    $(RM) $(OBJS) $(TARGET)
+	$(RM) $(OBJS_ALL) main $(TEST_ELF)
 ```
 
 链接时虚拟入口地址手动指定为 0xc0001500；程序的入口手动指定为 main；机器类型选择 elf_i386 进行链接；使用 -m32 指定进行32位系统编译。
